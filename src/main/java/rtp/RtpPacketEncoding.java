@@ -1,5 +1,7 @@
 package rtp;
 
+import util.BaseDataConvertByte;
+
 /**
  * @version 1.0
  * @Author:qiu
@@ -7,6 +9,7 @@ package rtp;
  * @Date 17:33 2023/3/16
  **/
 public class RtpPacketEncoding {
+
     //协议版本 2bit
     private byte head_v;
     //填充标志 1bit
@@ -15,16 +18,21 @@ public class RtpPacketEncoding {
     private byte head_x;
     //CSRC计数 4bit
     private byte head_cc;
+
     //一个视频帧结束标志 1bit
     private byte head_m;
     //载荷类型 7bit 表示传输什么类型的数据
     private byte head_pt;
+
     //发送时间戳 32bit
     private int  head_timestamp;
+
     //数据包的序列号 32bit
     private int head_sequence_number;
+
     //同步源 32bit
     private int head_ssrc;
+
     //贡献源 32bit
     private int head_csrc;
 
@@ -32,6 +40,9 @@ public class RtpPacketEncoding {
     private short length;
     //实际载荷
     private byte[] body;
+
+    private byte[] head_bytes;
+
 
     //实际载荷长度
 
@@ -51,14 +62,74 @@ public class RtpPacketEncoding {
         this.head_csrc = head_csrc;
     }
 
-    public byte[] encoding(){
-        if (!checkHeadParams()){
-            new Exception("init head param error!");
-        }
+    public byte[] headEncoding(int timestamp,int sequence_number,int ssrc,int csrc){
+
+        head_timestamp = timestamp;
+        head_sequence_number = sequence_number;
+        head_ssrc = ssrc;
+        head_csrc = csrc;
+
+        head_v = (byte) 0B11000000;
+        head_p = 0B00100000;
+        head_x = 0B00010000;
+        head_cc = 0B00001111;
+
+        head_m = (byte) 0B10000000;
+        head_pt = 0B01111111;
 
 
 
-        return null;
+
+        byte head_byte_1 = 0;
+        //高2位写入 2bit 版本信息 默认version 2
+        head_byte_1 = (byte) (head_byte_1 |  head_v);
+        //高3位写入 1bit 填充信息 默认有填充信息
+        head_byte_1 = (byte) (head_byte_1 | head_p);
+        //高4位写入 1bit 扩展标志 默认有扩展
+        head_byte_1 = (byte) (head_byte_1 | head_x);
+        //高5位写入 4bit CSRC计数 4bit
+        head_byte_1 = (byte) (head_byte_1 | head_cc);
+
+        byte head_byte_2 = 0;
+        //高1位写入 1bit 帧是否结束 默认version 1
+        head_byte_2 = (byte) (head_byte_1 | head_m);
+        //高2位写入 7bit 载荷类型
+        head_byte_2 = (byte) (head_byte_1 | head_pt);
+
+        System.out.println(head_byte_1);
+        System.out.println(head_byte_2);
+
+        byte[] timestampBytes = BaseDataConvertByte.intToBytes(head_timestamp);
+        byte[] sequenceNumberBytes = BaseDataConvertByte.intToBytes(head_sequence_number);
+        byte[] ssrcBytes = BaseDataConvertByte.intToBytes(head_ssrc);
+        byte[] csrcBytes = BaseDataConvertByte.intToBytes(head_csrc);
+
+        byte[] headBytes = new byte[18];
+        headBytes[0] = head_byte_1;
+        headBytes[1] = head_byte_2;
+
+        System.arraycopy(timestampBytes,0,headBytes,2,timestampBytes.length);
+        System.arraycopy(sequenceNumberBytes,0,headBytes,6,sequenceNumberBytes.length);
+        System.arraycopy(ssrcBytes,0,headBytes,10,ssrcBytes.length);
+        System.arraycopy(csrcBytes,0,headBytes,14,csrcBytes.length);
+        head_bytes = headBytes;
+        return headBytes;
+    }
+
+    public void setRtpPayload(byte[] data,short length){
+        this.body = data;
+        this.length = length;
+    }
+
+    public byte[] getRtpPacket(){
+        //20的头字节 暂时写死
+        byte[] rtpPacketBytes = new byte[20 + length];
+        byte[] lengthBytes = BaseDataConvertByte.shortToBytes(length);
+        System.arraycopy(head_bytes,0,rtpPacketBytes,0,head_bytes.length);
+        System.arraycopy(lengthBytes,0,rtpPacketBytes,18,lengthBytes.length);
+        System.arraycopy(body,0,rtpPacketBytes,head_bytes.length + lengthBytes.length,body.length);
+
+        return rtpPacketBytes;
     }
 
     public boolean checkHeadParams(){
